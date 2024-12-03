@@ -2,6 +2,8 @@
 .Rhistory
 .RData
 .Ruserdata
-/analyses/MT_cluster_cat.RDS
-/analyses/MT_xdiff_2.RDS
-/analyses/MT_xdiff_3.RDS
+data/results-clean-06-01-23.csv
+analyses/MT_cluster_cat.RDS
+analyses/MT_xdiff_2.RDS
+analyses/MT_xdiff_3.RDS
+analyses/MT_xdiff_glm.RDS
