@@ -3,7 +3,6 @@ library(tidyverse)
 
 # Import relevant data
 results_cleaned <- read_csv("../data/results-clean-06-01-23.csv")
-# clusters_extrapolated <- read_csv("../data/clusters-06-01-23.csv")
 xDiffExplore <- read_csv("../data/x-difference-03-12-24.csv")
 
 # Extrapolate trajectories from empirical trajectories
@@ -55,19 +54,8 @@ extrapolate_trajectories <- function(mt_time, mt_x_norm, mt_y_norm) {
 }
 
 
-xDiffBias <- xDiffExplore %>% 
-  group_by(DP, group, submission_id, item_id, trialNumber) %>%
-  summarize(mean_x_DPDiff = mean(x_DPDiff)) %>% 
-  mutate(bias = ifelse(mean_x_DPDiff >= 0, "target", "competitor")) %>%
-  group_by(DP, group, trialNumber, bias) %>%
-  summarize(freq = n()) %>% 
-  mutate(prop = freq/ sum(freq))
-    
-
 # Compute mean trajectories aggregated over items and participants
-# within each reliable cluster
 reliable_tra <- results_cleaned %>%
-  # full_join(clusters_extrapolated, by = "mt_id") %>%
   filter(group == "reliable") %>%
   group_by(mt_id, DP) %>%
   group_modify(function(d,...) {
@@ -77,9 +65,7 @@ reliable_tra <- results_cleaned %>%
   summarise(mean_mt_x_star = mean(mt_x_star))
 
 # Compute mean trajectories aggregated over items and participants
-# within each unreliable cluster
 unreliable_tra <- results_cleaned %>%
-  # full_join(clusters_extrapolated, by = "mt_id") %>%
   filter(group == "unreliable") %>%
   group_by(mt_id, DP) %>%
   group_modify(function(d,...) {
@@ -89,17 +75,16 @@ unreliable_tra <- results_cleaned %>%
   summarise(mean_mt_x_star = mean(mt_x_star))
 
 # Plot differences in horizontal mouse position
-# for each participant-item pair within each reliable cluster
+# for each participant-item pair
 xdiff_rel <- xDiffExplore %>%
   filter(group == "reliable") %>%
   group_by(DP) %>%
-  mutate(mean = mean(x_DPDiff)) %>%
+  mutate(mean = mean(xpos_mean)) %>%
   ungroup() %>% 
   ggplot() +
   geom_hline(aes(yintercept = mean, color = DP),
              linetype = "dashed", linewidth = .8) +
-  geom_histogram(aes(y = x_DPDiff, fill = DP), color = "black", position = "dodge") +
-  # facet_grid( ~ cluster) +
+  geom_histogram(aes(y = xpos_mean, fill = DP), color = "black", position = "dodge") +
   theme_minimal() +
   theme(legend.position = "none",
         panel.border = element_rect(fill = NA),
@@ -114,17 +99,16 @@ xdiff_rel <- xDiffExplore %>%
   scale_color_manual(values = c("#E07A5F", "#81B29A"))
 
 # Plot differences in horizontal mouse position
-# for each participant-item pair within each unreliable cluster
+# for each participant-item pair
 xdiff_unrel <- xDiffExplore %>%
   filter(group == "unreliable") %>%
   group_by(DP) %>%
-  mutate(mean = mean(x_DPDiff)) %>%
+  mutate(mean = mean(xpos_mean)) %>%
   ungroup() %>%
   ggplot() +
   geom_hline(aes(yintercept = mean, color = DP),
              linetype = "dashed", linewidth = .8) +
-  geom_histogram(aes(y = x_DPDiff, fill = DP), color = "black", position = "dodge") +
-  # facet_grid( ~ cluster) +
+  geom_histogram(aes(y = xpos_mean, fill = DP), color = "black", position = "dodge") +
   theme_minimal() +
   theme(legend.position = "none",
         panel.border = element_rect(fill = NA),
@@ -146,7 +130,7 @@ plot_mean_onsets <- results_cleaned %>%
             mean_answer_duration = mean(answer_duration))
 
 # Plot highlighted mean trajectories aggregated over items and participants
-# within each reliable cluster
+# in the reliable group
 mt_rel_high <- reliable_tra %>%
   mutate(highlight = case_when((plot_mean_onsets$mean_DP_onset[1] + 150 < t_star & plot_mean_onsets$mean_disambiguation_onset[1] + 150 > t_star | t_star == plot_mean_onsets$mean_disambiguation_onset[1] | t_star == plot_mean_onsets$mean_DP_onset[1]) & DP == "indeed" ~ "on_indeed",
                                (plot_mean_onsets$mean_DP_onset[1] + 150 < t_star & plot_mean_onsets$mean_disambiguation_onset[1] + 150 > t_star) & DP == "actually" ~ "on_actually",
@@ -175,7 +159,6 @@ mt_rel_high <- reliable_tra %>%
   ) +
   geom_path(aes(x = t_star, y = mean_mt_x_star, color = highlight, group = DP),
             size = 1.2, lineend = "round", linejoin = "bevel", key_glyph = draw_key_blank) +
-  # facet_grid( ~ cluster) +
   theme_minimal() +
   ggtitle("Reliable") +
   theme(legend.position = c(.8, 1.5), legend.direction = "vertical",
@@ -210,7 +193,7 @@ mt_rel_high <- reliable_tra %>%
   
 
 # Plot highlighted mean trajectories aggregated over items and participants
-# within each unreliable cluster
+# in the unreliable group
 mt_unrel_high <- unreliable_tra %>%
   mutate(highlight = case_when((plot_mean_onsets$mean_DP_onset[1] + 150 < t_star & plot_mean_onsets$mean_disambiguation_onset[1] + 150 > t_star | t_star == plot_mean_onsets$mean_disambiguation_onset[1] | t_star == plot_mean_onsets$mean_DP_onset[1]) & DP == "indeed" ~ "on_indeed",
                                (plot_mean_onsets$mean_DP_onset[1] + 150 < t_star & plot_mean_onsets$mean_disambiguation_onset[1] + 150 > t_star) & DP == "actually" ~ "on_actually",
@@ -239,7 +222,6 @@ mt_unrel_high <- unreliable_tra %>%
   ) +
   geom_path(aes(x = t_star, y = mean_mt_x_star, color = highlight, group = DP),
           size = 1.2, lineend = "round", linejoin = "bevel", key_glyph = draw_key_blank) +
-  # facet_grid( ~ cluster) +
   theme_minimal() +
   ggtitle("Unreliable") +
   theme(legend.position = "none", legend.direction = "vertical",
@@ -274,18 +256,18 @@ xdiff <- ggpubr::ggarrange(xdiff_rel, xdiff_unrel)
 # Combine highlighted mean trajectories plot (top) with clusters plot (bottom)
 ggpubr::ggarrange(mt_high, xdiff, nrow = 2, heights = c(.8, .6))
 
-# ggsave("xdiff-full-03-12-24.png", height = 6, width = 11, dpi = "retina", bg = "white")
+# ggsave("xdiff-full-13-12-24.png", height = 6, width = 11, dpi = "retina", bg = "white")
 
 xdiff_rel_block <- xDiffExplore %>%
   filter(group == "reliable") %>%
   group_by(DP, block) %>%
-  mutate(mean = mean(x_DPDiff)) %>%
+  mutate(mean = mean(xpos_mean)) %>%
   ungroup() %>% 
   ggplot() +
   ggtitle("Reliable") +
   geom_hline(aes(yintercept = mean, color = DP),
              linetype = "dashed", linewidth = .8) +
-  geom_histogram(aes(y = x_DPDiff, fill = DP), color = "black", position = "dodge") +
+  geom_histogram(aes(y = xpos_mean, fill = DP), color = "black", position = "dodge") +
   facet_grid( ~ block) +
   theme_minimal() +
   theme(legend.position = "none",
@@ -302,20 +284,18 @@ xdiff_rel_block <- xDiffExplore %>%
   scale_fill_manual(values = c("#E07A5F", "#81B29A")) +
   scale_color_manual(values = c("#E07A5F", "#81B29A"))
 
-# ggsave("xdiff-rel-block-03-12-24.png", height = 6, width = 11, dpi = "retina", bg = "white")
+# ggsave("xdiff-rel-block-13-12-24.png", height = 6, width = 11, dpi = "retina", bg = "white")
 
-# Plot differences in horizontal mouse position
-# for each participant-item pair within each unreliable cluster
 xdiff_unrel_block <- xDiffExplore %>%
   filter(group == "unreliable") %>%
   group_by(DP, block) %>%
-  mutate(mean = mean(x_DPDiff)) %>%
+  mutate(mean = mean(xpos_mean)) %>%
   ungroup() %>%
   ggplot() +
   ggtitle("Unreliable") +
   geom_hline(aes(yintercept = mean, color = DP),
              linetype = "dashed", linewidth = .8) +
-  geom_histogram(aes(y = x_DPDiff, fill = DP), color = "black", position = "dodge") +
+  geom_histogram(aes(y = xpos_mean, fill = DP), color = "black", position = "dodge") +
   facet_grid( ~ block) +
   theme_minimal() +
   theme(legend.position = "none",
@@ -332,4 +312,4 @@ xdiff_unrel_block <- xDiffExplore %>%
   scale_fill_manual(values = c("#E07A5F", "#81B29A")) +
   scale_color_manual(values = c("#E07A5F", "#81B29A"))
 
-# ggsave("xdiff-unrel-block-03-12-24.png", height = 6, width = 11, dpi = "retina", bg = "white")
+# ggsave("xdiff-unrel-block-13-12-24.png", height = 6, width = 11, dpi = "retina", bg = "white")

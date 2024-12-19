@@ -329,43 +329,10 @@ resultsExtrapolatedTime_cleaned <- resultsExtrapolatedTime %>%
   filter(mt_id %in% (results_cleaned$mt_id %>% unique()))
 
 # produce data set with cleaned data for plotting
-# write.csv(results_cleaned, "results-clean-06-01-23.csv", row.names = FALSE, fileEncoding = 'UTF-8')
+# write.csv(results_cleaned, "../data/results-clean-06-01-23.csv", row.names = FALSE, fileEncoding = 'UTF-8')
 
 
-# Clustering based on extrapolated trajectories --------------------------------
-
-# extract the extrapolated trajectories as an array
-
-# mt_ids <- resultsExtrapolatedTime_cleaned$mt_id %>% unique()
-# maxNObs <- resultsExtrapolatedTime_cleaned$t_star %>% unique() %>% length()
-# a <- array(
-#   0, 
-#   dim = c(length(mt_ids),maxNObs,3),
-#   dimnames = list(mt_id = unique(resultsExtrapolatedTime_cleaned$mt_id),
-#                   index = 1:maxNObs,
-#                   measure = c("timestamp", "xpos", "ypos")
-#   )
-# )
-# 
-# for (i in 1:length(mt_ids)) {
-#   current_id <- unique(resultsExtrapolatedTime_cleaned$mt_id)[i]
-#   a[i,,] = resultsExtrapolatedTime_cleaned %>% 
-#     filter(mt_id == current_id) %>% 
-#     select(t_star, mt_x_star, mt_y_star) %>%
-#     rename(timestamp = t_star, xpos = mt_x_star, ypos = mt_y_star) %>%
-#     simplify2array()
-# }
-# 
-# clusters_extrapolated <- mt_cluster(a, n_cluster = 3) %>%  
-#   mutate(cluster = as_factor(cluster))
-# resultsExtrapolatedTime_cleaned <- resultsExtrapolatedTime_cleaned %>% 
-#   full_join(clusters_extrapolated, 
-#             by = "mt_id")
-
-# produce data set with cluster membership information for plotting
-# write.csv(clusters_extrapolated, "clusters-06-01-23.csv", row.names = FALSE, fileEncoding = 'UTF-8')
-
-# Compute change in horizontal mouse position within the particle window  ------
+# Compute bias in horizontal mouse position within the particle window  ------
 
 extrapolate <- function(x,t,t_star){
   upper_index <- which(t>t_star)[1]
@@ -378,36 +345,59 @@ extrapolate <- function(x,t,t_star){
   return(x_star)
 }
 
-## CHANGE TR
-xDiffExplore <- 
-  resultsExtrapolatedTime_cleaned |> 
+# Plot distribution of measured horizontal mouse positions per trial
+
+group_labels <- c("reliable" = "Reliable", "unreliable" = "Unreliable")
+
+resultsExtrapolatedTime_cleaned |> 
   full_join(
     results_cleaned |> 
       select(mt_id, submission_id, group, DP, item_id, DP_onset, disambiguation_onset, block, trialNumber) %>% unique(),
     by = "mt_id"
   ) |> 
-  mutate(xpos_critical = ifelse(t_star > (DP_onset + 150) & 
-                                (disambiguation_onset + 150) > t_star,
-         1, 0)) |> 
+  mutate(xpos_critical = ifelse(t_star > (DP_onset + 150) & (disambiguation_onset + 150) > t_star,
+                                1, 0)) |> 
   filter(xpos_critical == 1) |> 
-  group_by(DP, group, submission_id, item_id, block, trialNumber)  |> 
-  summarize(xpos_mean = mean(mt_x_star, na.rm = TRUE)) |> 
+  group_by(DP, group, submission_id, item_id, block, trialNumber) |>
+  summarize(xpos_points = n()) |>
+  ggplot() +
+  facet_grid(DP ~ group, labeller = as_labeller(group_labels)) +
+  geom_histogram(aes(xpos_points, fill = DP), color = "black", key_glyph = draw_key_blank) +
+  theme_minimal() +
+  theme(legend.position = c(1.15, .5), legend.text = ggtext::element_markdown(size = 12),
+        axis.title.y = element_blank(), strip.text.y = element_blank(), legend.title = element_blank(),
+        panel.grid.major.x = element_blank(), panel.grid.minor.x = element_blank(),
+        panel.grid.minor.y = element_blank(), panel.spacing.y = unit(1.2, "lines"),
+        axis.title.x = element_blank(), panel.spacing.x = unit(2.5, "lines"),
+        axis.text.x = element_text(face = "bold", size = 10,
+                                   margin = margin(t = 5, r = 0, b = 0, l = 0)),
+        strip.text.x = element_text(face = "bold", size = 14,
+                                    margin = margin(t = 0, r = 0, b = 20, l = 0)),
+        axis.text.y = element_text(face = "bold", size = 8, 
+                                   margin = margin(t = 0, r = 5, b = 0, l = 0)),
+        plot.margin = margin(4.4, 88, 4.4, 4.4), legend.spacing.y = unit(.01, "lines")) +
+    scale_fill_manual(values = c("#E07A5F", "#81B29A"),
+                      labels = c("indeed" = "<b style='color:#81B29A'>Tatsächlich</b>",
+                                 "actually" = "<b style='color:#E07A5F'>Eigentlich</b>"))
+  
+# ggsave("n-points-xpos-16-12-24.png", height = 4, width = 5, dpi = "retina", bg = "white")
+ 
+# Compute mean horizontal mouse position within critical window per trial  
+xDiffExplore <-
+resultsExtrapolatedTime_cleaned |>
+  full_join(
+    results_cleaned |>
+      select(mt_id, submission_id, group, DP, item_id, DP_onset, disambiguation_onset, block, trialNumber) %>% unique(),
+    by = "mt_id"
+  ) |>
+  mutate(xpos_critical = ifelse(t_star > (DP_onset + 150) & (disambiguation_onset + 150) > t_star,
+                                1, 0)) |> 
+  filter(xpos_critical == 1) |> 
+  group_by(DP, group, submission_id, item_id, block, trialNumber) |> 
+  summarize(xpos_mean = mean(mt_x_star, na.rm = TRUE)) |>
   mutate(xpos_side = ifelse(xpos_mean > 0, "target", "competitor"),
          xpos_side_num = ifelse(xpos_mean > 0, 1, 0))
 
-# xDiffExplore <- 
-#   resultsExtrapolatedTime_cleaned %>% 
-#   full_join(
-#     results_cleaned %>% 
-#       select(mt_id, submission_id, group, DP, item_id, DP_onset, disambiguation_onset, block, trialNumber) %>% unique(),
-#     by = "mt_id"
-#   ) %>% 
-# group_by(DP, group, submission_id, item_id, block, trialNumber) %>%
-# summarize(
-#   x_startDP = extrapolate(mt_x_star, t_star, DP_onset[1] + 150),
-#   x_endDP   = extrapolate(mt_x_star, t_star, disambiguation_onset[1] + 150),
-#   x_DPDiff  = x_endDP - x_startDP
-# )
 
-# produce data set with horizontal differences for plotting
-write.csv(xDiffExplore, "../data/x-difference-03-12-24.csv", row.names = FALSE, fileEncoding = 'UTF-8')
+# Produce data set with mean horizontal positions for plotting
+# write.csv(xDiffExplore, "../data/x-difference-03-12-24.csv", row.names = FALSE, fileEncoding = 'UTF-8')
