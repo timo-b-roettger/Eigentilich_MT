@@ -124,13 +124,14 @@ MT_xdiff_block <- brm(
   file  = "MT_xdiff_block.RDS")
 
 # Load model object (fitted model)
-# MT_xdiff <- readRDS("MT_xdiff.RDS")
+# MT_xdiff_block <- readRDS("MT_xdiff_block.RDS")
 
 # Compute empirical proportions for reference
 xDiffExplore %>% 
-  group_by(group, DP, xpos_side) %>%
+  group_by(group, DP, block, xpos_side) %>%
   summarise(n = n()) %>%
-  mutate(prop = n / sum(n))
+  mutate(prop = n / sum(n)) %>% 
+  filter(block %in% c(1, 10))
 
 # Extract estimated probabilities from fitted model
 posteriors_block <- MT_xdiff_block |> 
