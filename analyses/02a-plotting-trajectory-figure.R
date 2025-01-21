@@ -1,9 +1,10 @@
 # Load packages
 library(tidyverse)
+library(ggtext)
+library(ggborderline)
 
 # Import relevant data
 results_cleaned <- read_csv("../data/results-clean-06-01-23.csv")
-clusters_extrapolated <- read_csv("../data/clusters-06-01-23.csv")
 
 # Extrapolate trajectories from empirical trajectories
 time_window_size = 150
@@ -57,8 +58,7 @@ extrapolate_trajectories <- function(mt_time, mt_x_norm, mt_y_norm) {
 
 # Compute mean item trajectories aggregated over participants
 plot_tra <- results_cleaned %>%
-  full_join(clusters_extrapolated, by = "mt_id") %>%
-  group_by(mt_id, DP, group, item_id, cluster, condition) %>%
+  group_by(mt_id, DP, group, item_id, condition) %>%
   group_modify(function(d,...) {
     extrapolate_trajectories(d$mt_time, d$mt_x_norm, d$mt_y_norm)}) %>%
   ungroup() %>%
@@ -72,10 +72,20 @@ plot_mean_onsets <- results_cleaned %>%
             mean_disambiguation_onset = mean(disambiguation_onset),
             mean_answer_duration = mean(answer_duration))
 
+# Compute group means
+mean_tra <- results_cleaned %>%
+  group_by(group, mt_id, DP) %>%
+  group_modify(function(d,...) {
+    extrapolate_trajectories(d$mt_time, d$mt_x_norm, d$mt_y_norm)}) %>%
+  ungroup() %>%
+  group_by(group, DP, t_star) %>%
+  summarise(mean_mt_x_star = mean(mt_x_star))
+
 group_labels <- c("reliable" = "Reliable", "unreliable" = "Unreliable")
 
 # Plot mean item trajectories aggregated over participants
-mt_plot <- plot_tra %>%
+# with group meas overlaid
+plot_tra %>%
   ggplot() +
   # rectangle shading time zone
   geom_rect(
@@ -112,28 +122,25 @@ mt_plot <- plot_tra %>%
     ),
     aes(xintercept = xintercept), alpha = 0.7, linetype = "longdash"
   ) +
-  # geom_path(data = reliable_par_tra,
-  #           aes(x = t_star, y = mean_mt_x_star, color = DP),
-  #           size = .8, lineend = "round", linejoin = "bevel", alpha = .2
-  # ) +
   # actual mouse path
-  geom_path(
-    aes(x = t_star, y = mean_mt_x_star, color = DP, group = interaction(item_id, DP)),
-    linewidth = .5, lineend = "round", linejoin = "bevel", alpha = .7, key_glyph = draw_key_blank
-  ) +
+  geom_path(aes(x = t_star, y = mean_mt_x_star, color = DP, group = interaction(item_id, DP)),
+            linewidth = .5, lineend = "round", linejoin = "bevel", alpha = .3, key_glyph = draw_key_blank) +
+  ggborderline::geom_borderline(data = mean_tra,
+                                aes(x = t_star, y = mean_mt_x_star, color = DP),
+                                linewidth = 1, borderwidth = .3, lineend = "round", linejoin = "bevel", key_glyph = draw_key_blank) +
   theme_minimal() +
   facet_wrap( ~ group, labeller = as_labeller(group_labels)) +
-  theme(legend.position = c(.38, 1.25), legend.direction = "vertical",
-        axis.title.x = element_blank(), legend.text = ggtext::element_markdown(size = 18),
+  theme(legend.position = c(.38, 1.15), legend.direction = "vertical",
+        axis.title.x = element_blank(), legend.text = ggtext::element_markdown(size = 14),
         panel.grid.minor.x = element_blank(), panel.grid.minor.y = element_blank(),
         axis.title.y = element_blank(), legend.box.just = "right", panel.spacing = unit(2.5, "lines"),
-        axis.text.y = element_text(face = "bold", size = 12, 
+        axis.text.y = element_text(face = "bold", size = 8, 
                                    margin = margin(t = 0, r = 5, b = 0, l = 0)), 
-        axis.text.x = element_text(face = "bold", size = 12, 
+        axis.text.x = element_text(face = "bold", size = 8, 
                                    margin = margin(t = 5, r = 0, b = 0, l = 0)),
-        strip.text.x = element_text(face = "bold", size = 24,
+        strip.text.x = element_text(face = "bold", size = 20,
                                     margin = margin(t = 0, r = 0, b = 60, l = 0)),
-        plot.margin = margin(13.2, 4.4, 8.8, 4.4), legend.spacing.y = unit(.5, "lines")) +
+        plot.margin = margin(13.2, 4.4, 8.8, 4.4), legend.spacing.y = unit(.2, "lines")) +
   scale_y_continuous(breaks = seq(-1, 1, .25)) +
   scale_x_continuous(breaks = seq(0, 4000, 500)) +
   scale_color_manual(values = c("#E07A5F", "#81B29A"),
@@ -145,198 +152,20 @@ mt_plot <- plot_tra %>%
   geom_segment(data = data.frame(group = "reliable"),
            aes(x = plot_mean_onsets$mean_DP_onset[1],
            xend = plot_mean_onsets$mean_DP_onset[1],
-           y = 1.4,
-           yend = 1.05), color = '#bdbdbd', lwd = 2.3,
+           y = 1.35,
+           yend = 1.05), color = '#bdbdbd', lwd = 2,
            arrow = arrow(length = unit(0.2, "inches"), ends = "last")) +
-  geom_label(data = data.frame(group = "reliable"), size = 14/ .pt,
+  geom_label(data = data.frame(group = "reliable"), size = 10/ .pt,
            aes(x = plot_mean_onsets$mean_DP_onset[1],
-           y = 1.55), color = "white", fill = "#bdbdbd", label = "PARTICLE") +
+           y = 1.45), color = "white", fill = "#bdbdbd", label = "PARTICLE") +
   geom_segment(data = data.frame(group = "reliable"),
            aes(x = plot_mean_onsets$mean_disambiguation_onset[1],
            xend = plot_mean_onsets$mean_disambiguation_onset[1],
-           y = 1.4,
+           y = 1.35,
            yend = 1.05), color = '#636363', lwd = 2.3,
            arrow = arrow(length = unit(0.2, "inches"), ends = "last")) +
-  geom_label(data = data.frame(group = "reliable"), size = 14/ .pt,
+  geom_label(data = data.frame(group = "reliable"), size = 10/ .pt,
            aes(x = plot_mean_onsets$mean_disambiguation_onset[1],
-           y = 1.55), color = "white", fill = "#636363", label = "NOUN")
+           y = 1.45), color = "white", fill = "#636363", label = "NOUN")
 
-# ggsave("MT-main-both-29-03-22.png", height = 4, width = 8, dpi = "retina", bg = "white")
-
-# Compute mean trajectories aggregated over items and participants
-# within each reliable cluster
-reliable_cluster_tra <- results_cleaned %>%
-  full_join(clusters_extrapolated, by = "mt_id") %>%
-  filter(group == "reliable") %>%
-  group_by(mt_id, DP, cluster) %>%
-  group_modify(function(d,...) {
-    extrapolate_trajectories(d$mt_time, d$mt_x_norm, d$mt_y_norm)}) %>%
-  ungroup() %>%
-  group_by(DP, cluster, t_star) %>%
-  summarise(mean_mt_x_star = mean(mt_x_star))
-
-# Compute mean participant trajectories aggregated over items
-# within each reliable cluster
-reliable_cluster_par_tra <- results_cleaned %>%
-  full_join(clusters_extrapolated, by = "mt_id") %>%
-  filter(group == "reliable") %>%
-  group_by(mt_id, DP, item_id, cluster) %>%
-  group_modify(function(d,...) {
-    extrapolate_trajectories(d$mt_time, d$mt_x_norm, d$mt_y_norm)}) %>%
-  ungroup() %>%
-  group_by(DP, cluster, item_id, t_star) %>%
-  summarise(mean_mt_x_star = mean(mt_x_star))
-
-# Plot trajectories for the reliable clusters
-# aggregated trajectories are plotted over participant means
-mt_reliable_cluster <- reliable_cluster_tra %>% 
-  ggplot()+
-  geom_rect(
-    data = tibble(
-      `Time window` = c("Signal onset", "Particle onset", "Disambiguation") %>%
-        factor(ordered = T, levels = c("Signal onset", "Particle onset",
-                                       "Disambiguation")),
-      start = c(0,
-                plot_mean_onsets$mean_DP_onset[1],
-                plot_mean_onsets$mean_disambiguation_onset[1]),
-      end = c(plot_mean_onsets$mean_DP_onset[1],
-              plot_mean_onsets$mean_disambiguation_onset[1],
-              plot_mean_onsets$mean_answer_duration[1])
-    ),
-    aes(NULL, NULL, xmin = start, xmax = end, fill = `Time window`),
-    ymin = -.75,
-    ymax = 1,
-    colour = "black",
-    linewidth = .3,
-    alpha = .7
-  ) +
-  scale_fill_brewer(
-    palette = "Greys"
-  ) +
-  # horizontal lines indicating time zones for means
-  geom_vline(
-    data = tibble(
-      xintercept = with(plot_mean_onsets, c(
-        mean(mean_DP_onset) + time_window_size,
-        mean(mean_DP_onset) - time_window_size,
-        mean(mean_disambiguation_onset) + time_window_size,
-        mean(mean_disambiguation_onset) - time_window_size
-      ))
-    ),
-    aes(xintercept = xintercept), alpha = 0.6, linewidth = .4, linetype = "longdash"
-  ) +
-  geom_path(data = reliable_cluster_par_tra, aes(x = t_star, y = mean_mt_x_star, color = DP, group = interaction(item_id, DP)),
-            linewidth = .5, lineend = "round", linejoin = "bevel", alpha = .1) +
-  geom_path(aes(x = t_star, y = mean_mt_x_star, color = DP),
-            linewidth = 1.2, lineend = "round", linejoin = "bevel") +
-  facet_grid( ~ cluster) +
-  theme_minimal() +
-  theme(legend.position = "none",
-        panel.border = element_rect(fill = NA),
-        axis.title.x = element_blank(), strip.text.x = element_blank(),
-        panel.grid.minor.x = element_blank(), panel.grid.minor.y = element_blank(),
-        axis.title.y = element_blank(), panel.spacing = unit(.8, "lines"),
-        axis.text.y = element_text(face = "bold", size = 8, 
-                                   margin = margin(t = 0, r = 5, b = 0, l = 0)), 
-        axis.text.x = element_text(face = "bold", size = 5.5, 
-                                   margin = margin(t = 5, r = 0, b = 5, l = 0)),
-        plot.margin = margin(8.8, 8.8, 4.4, 4.4)) +
-  scale_y_continuous(breaks = seq(-1, 1, .25)) +
-  scale_x_continuous(breaks = seq(0, 4000, 500)) +
-  scale_color_manual(values = c("#E07A5F", "#81B29A"),
-                     labels = c("indeed" = "Tatsächlich", "actually" = "Eigentlich")) +
-  guides(fill = guide_legend(label = FALSE),
-         color = guide_legend(title = "Particle", order = 2, title.hjust = .5))
-
-# Compute mean trajectories aggregated over items and participants
-# within each unreliable cluster
-unreliable_cluster_tra <- results_cleaned %>%
-  full_join(clusters_extrapolated, by = "mt_id") %>%
-  filter(group == "unreliable") %>%
-  group_by(mt_id, DP, cluster) %>%
-  group_modify(function(d,...) {
-    extrapolate_trajectories(d$mt_time, d$mt_x_norm, d$mt_y_norm)}) %>%
-  ungroup() %>%
-  group_by(DP, cluster, t_star) %>%
-  summarise(mean_mt_x_star = mean(mt_x_star))
-
-# Compute mean participant trajectories aggregated over items
-# within each unreliable cluster
-unreliable_cluster_par_tra <- results_cleaned %>%
-  full_join(clusters_extrapolated, by = "mt_id") %>%
-  filter(group == "unreliable") %>%
-  group_by(mt_id, DP, item_id, cluster) %>%
-  group_modify(function(d,...) {
-    extrapolate_trajectories(d$mt_time, d$mt_x_norm, d$mt_y_norm)}) %>%
-  ungroup() %>%
-  group_by(DP, cluster, item_id, t_star) %>%
-  summarise(mean_mt_x_star = mean(mt_x_star))
-
-# Plot trajectories for the unreliable clusters
-# aggregated trajectories are plotted over participant means
-mt_unreliable_cluster <- unreliable_cluster_tra %>% 
-  ggplot()+
-  geom_rect(
-    data = tibble(
-      `Time window` = c("Signal onset", "Particle onset", "Disambiguation") %>%
-        factor(ordered = T, levels = c("Signal onset", "Particle onset",
-                                       "Disambiguation")),
-      start = c(0,
-                plot_mean_onsets$mean_DP_onset[1],
-                plot_mean_onsets$mean_disambiguation_onset[1]),
-      end = c(plot_mean_onsets$mean_DP_onset[1],
-              plot_mean_onsets$mean_disambiguation_onset[1],
-              plot_mean_onsets$mean_answer_duration[1])
-    ),
-    aes(NULL, NULL, xmin = start, xmax = end, fill = `Time window`),
-    ymin = -.75,
-    ymax = 1,
-    colour = "black",
-    linewidth = .3,
-    alpha = .7
-  ) +
-  scale_fill_brewer(
-    palette = "Greys"
-  ) +
-  # horizontal lines indicating time zones for means
-  geom_vline(
-    data = tibble(
-      xintercept = with(plot_mean_onsets, c(
-        mean(mean_DP_onset) + time_window_size,
-        mean(mean_DP_onset) - time_window_size,
-        mean(mean_disambiguation_onset) + time_window_size,
-        mean(mean_disambiguation_onset) - time_window_size
-      ))
-    ),
-    aes(xintercept = xintercept), alpha = 0.6, linewidth = .4, linetype = "longdash"
-  ) +
-  geom_path(data = reliable_cluster_par_tra, aes(x = t_star, y = mean_mt_x_star, color = DP, group = interaction(item_id, DP)),
-            size = .5, lineend = "round", linejoin = "bevel", alpha = .1) +
-  geom_path(aes(x = t_star, y = mean_mt_x_star, color = DP),
-            size = 1.2, lineend = "round", linejoin = "bevel") +
-  facet_grid( ~ cluster) +
-  theme_minimal() +
-  theme(legend.position = "none",
-        panel.border = element_rect(fill = NA),
-        axis.title.x = element_blank(), strip.text.x = element_blank(),
-        panel.grid.minor.x = element_blank(), panel.grid.minor.y = element_blank(),
-        axis.title.y = element_blank(), panel.spacing = unit(.8, "lines"),
-        axis.text.y = element_text(face = "bold", size = 8, 
-                                   margin = margin(t = 0, r = 5, b = 0, l = 0)), 
-        axis.text.x = element_text(face = "bold", size = 5.5, 
-                                   margin = margin(t = 5, r = 0, b = 5, l = 0)),
-        plot.margin = margin(8.8, 4.4, 4.4, 8.8)) +
-  scale_y_continuous(breaks = seq(-1, 1, .25)) +
-  scale_x_continuous(breaks = seq(0, 4000, 500)) +
-  scale_color_manual(values = c("#E07A5F", "#81B29A"),
-                     labels = c("indeed" = "Tatsächlich", "actually" = "Eigentlich")) +
-  guides(fill = guide_legend(label = FALSE),
-         color = guide_legend(title = "Particle", order = 2, title.hjust = .5))
-
-# Combine cluster plots
-mt_cluster <- ggpubr::ggarrange(mt_reliable_cluster, mt_unreliable_cluster)
-
-# Combine item trajectories plot (top) with clusters plot (bottom)
-ggpubr::ggarrange(mt_plot, mt_cluster, nrow = 2, heights = c(.8, .7))
-
-# ggsave("MT-full-25-04-22.png", height = 6, width = 11, dpi = "retina", bg = "white")
+# ggsave("MT-main-21-01-25.png", height = 4, width = 8, dpi = "retina", bg = "white")
